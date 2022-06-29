@@ -17,6 +17,6 @@
   },
   "homepage": "https://github.com/MicroPolarFluids/MicroPolar#readme",
   "dependencies": {
-    "shenfun": "^4.0.2"
+    "shenfun": "4.0.2"
   }
 }
