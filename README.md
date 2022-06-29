@@ -1,5 +1,19 @@
 # Direct Numerical Simulations (DNS) of MicroPolar Fluids.
 
+The micropolar equations are given as
+
+$$ 
+\begin{align}
+\frac{\partial \vec{u}}{\partial t} + (\vec{u} \cdot \nabla)\vec{u} &= -\nabla p + \frac{1}{Re}\nabla^2 \vec{u} + \frac{m}{Re}\nabla \times \vec{w} \\
+\frac{JN}{m}\left(\frac{\partial \vec{w}}{\partial t} + (\vec{u} \cdot \nabla)\vec{w}\right) &= \frac{1}{Re}\nabla^2 \vec{w} + \frac{N}{Re}\nabla \times \vec{u} - \frac{2N}{Re}\vec{w}
+\end{align}
+$$
+
+where $\vec{u} \text{ and } \vec{w}$ are the linear and angular velocity vectors, respectively, whereas $m, J, N \text{ and } Re$ are parameters. More information can be found in 
+
+    George Sofadis and Ioannis Sarris "Microrotation viscosity effect on turbulent micropolar fluid channel flow", 
+    Phys. Fluids 33, 095126 (2021); doi: 10.1063/5.0063591
+
 The DNS solver is based on [shenfun](https://github.com/spectralDNS/shenfun). Shenfun is a high performance computing platform for solving partial differential equations (PDEs) by the spectral Galerkin method. 
 Shenfun has quite a few dependencies 
 
