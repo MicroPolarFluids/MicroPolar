@@ -9,7 +9,7 @@ $$
 \end{align}
 $$
 
-where $\vec{u} \text{ and } \vec{w}$ are the linear and angular velocity vectors, respectively, whereas $m, J, N \text{ and } Re$ are parameters. More information can be found in 
+where $\vec{u} \text{ and } \vec{w}$ are the linear and angular velocity vectors, respectively, $p$ is pressure and $m, J, N \text{ and } Re$ are parameters. More information can be found in 
 
     George Sofadis and Ioannis Sarris "Microrotation viscosity effect on turbulent micropolar fluid channel flow", 
     Phys. Fluids 33, 095126 (2021); doi: 10.1063/5.0063591
