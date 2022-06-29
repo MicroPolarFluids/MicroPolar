@@ -10,7 +10,7 @@
     "type": "git",
     "url": "git+https://github.com/MicroPolarFluids/MicroPolar.git"
   },
-  "author": "Mikael Mortensen",
+  "author": "Mikael Mortensen, George Sofiadis, Ioannis Sarris",
   "license": "BSD-2-Clause",
   "bugs": {
     "url": "https://github.com/MicroPolarFluids/MicroPolar/issues"
