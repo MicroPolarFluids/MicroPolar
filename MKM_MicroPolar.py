@@ -369,7 +369,7 @@ if __name__ == '__main__':
     d = {
         'N': N,
         'Re': 180.,
-        'dt': 0.0005,
+        'dt': 0.00025,
         'filename': f'MKM_MP_{N[0]}_{N[1]}_{N[2]}',
         'conv': 1,
         'modplot': 100,

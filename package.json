@@ -1,0 +1,22 @@
+{
+  "name": "micropolar",
+  "version": "1.0.0",
+  "description": "DNS solver for MicroPolar Fluids",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MicroPolarFluids/MicroPolar.git"
+  },
+  "author": "Mikael Mortensen",
+  "license": "BSD-2-Clause",
+  "bugs": {
+    "url": "https://github.com/MicroPolarFluids/MicroPolar/issues"
+  },
+  "homepage": "https://github.com/MicroPolarFluids/MicroPolar#readme",
+  "dependencies": {
+    "shenfun": "^4.0.2"
+  }
+}
