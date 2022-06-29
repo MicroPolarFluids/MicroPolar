@@ -9,7 +9,7 @@ $$
 \end{align}
 $$
 
-where $\vec{u} \text{ and } \vec{w}$ are the linear and angular velocity vectors, respectively, $p$ is pressure and $m, J, N \text{ and } Re$ are parameters. More information can be found in 
+where $\vec{u} \text{ and } \vec{w}$ are the linear and angular velocity vectors, respectively, $p$ is pressure and $m, J, N \text{ and } Re$ are parameters. The equations are solved in a three-dimensional channel configuration, with orthogonal polynomials (Chebyshev) in the wall-normal direction and Fourier exponentials in the streamwise and spanwise directions. For time-integration we can choose between several IMEX Runge Kutta methods of different order and accuracy. More information about micropolar fluid flow can be found in 
 
     George Sofadis and Ioannis Sarris "Microrotation viscosity effect on turbulent micropolar fluid channel flow", 
     Phys. Fluids 33, 095126 (2021); doi: 10.1063/5.0063591
