@@ -148,7 +148,7 @@ class MKM(MicroPolar):
             if self.probes is not None:
                 self.probes.tofile()
 
-            if comm.Get_size() == 1:
+            if comm.Get_size() == 1 and self.modplot > 0:
                 stats = self.stats.get_stats()
                 u0, w0 = stats[:2]
                 x = c.B0.mesh(bcast=False)
@@ -165,6 +165,7 @@ class MKM(MicroPolar):
             q = (self.flux[0] - beta)
             if comm.Get_rank() == 0:
                 self.u_[1, 0, 0, 0] += q/self.Volume
+
 
 class Probe:
     """Class for probing
@@ -310,7 +311,7 @@ class Stats:
 
             for i, name in enumerate(("U", "V", "W")):
                 self.f0["Average Velocity/"+name][s] = self.Umean[i]/Nd
-                self.f0["Average Angular Velocity/"+name][s] = self.Umean[i]/Nd
+                self.f0["Average Angular Velocity/"+name][s] = self.Wmean[i]/Nd
 
             for i, name in enumerate(("UU", "VV", "WW", "UV", "UW", "VW")):
                 self.f0["Reynolds Stress Velocity/"+name][s] = self.UU[i]/Nd
@@ -361,6 +362,7 @@ class Stats:
             self.UW[i, :] = self.f0["Cross Velocity Angular Velocity/"+name][s]*Nd
         self.f0.close()
 
+
 if __name__ == '__main__':
     from time import time
     from mpi4py_fft import generate_xdmf
@@ -372,7 +374,7 @@ if __name__ == '__main__':
         'dt': 0.00025,
         'filename': f'MKM_MP_{N[0]}_{N[1]}_{N[2]}',
         'conv': 1,
-        'modplot': 100,
+        'modplot': -1,
         'modsave': 100,
         'moderror': 100,
         'family': 'C',
@@ -384,7 +386,7 @@ if __name__ == '__main__':
         }
     c = MKM(**d)
     t, tstep = c.initialize(from_checkpoint=False)
-    c.solve(t=t, tstep=tstep, end_time=10)
+    c.solve(t=t, tstep=tstep, end_time=0.05)
     print('Computing time %2.4f'%(time()-t0))
     if comm.Get_rank() == 0:
         generate_xdmf('_'.join((d['filename'], 'U'))+'.h5')
