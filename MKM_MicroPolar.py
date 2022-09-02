@@ -374,9 +374,9 @@ if __name__ == '__main__':
         'dt': 0.00025,
         'filename': f'MKM_MP_{N[0]}_{N[1]}_{N[2]}',
         'conv': 1,
-        'modplot': -1,
+        'modplot': 10,
         'modsave': 100,
-        'moderror': 100,
+        'moderror': 1,
         'family': 'C',
         'checkpoint': 100,
         'sample_stats': 100,
@@ -386,7 +386,7 @@ if __name__ == '__main__':
         }
     c = MKM(**d)
     t, tstep = c.initialize(from_checkpoint=False)
-    c.solve(t=t, tstep=tstep, end_time=0.05)
+    c.solve(t=t, tstep=tstep, end_time=0.005)
     print('Computing time %2.4f'%(time()-t0))
     if comm.Get_rank() == 0:
         generate_xdmf('_'.join((d['filename'], 'U'))+'.h5')
