@@ -25,13 +25,13 @@ UV = array(data['Reynolds Stress/UV'])
 print('Flux', trapz(kmm[:, 2], kmm[:, 0])*(2*pi)**2)
 
 plt.figure()
-plt.plot(kmm[:, 0], kmm[:, 2], 'b')
+plt.plot(kmm[:, 0], kmm[:, 2], 'b+')
 #plt.semilogx(1-y[:N//2], V, 'r')
 plt.plot(1-y[:N//2], V, 'r')
 
 plt.figure()
 plot = plt.loglog
-plot(rss[1:, 0], rss[1:, 2], 'b', rss[1:, 0], rss[1:, 3], 'b', rss[1:, 0], rss[1:, 4], 'b')
+plot(rss[1:, 0], rss[1:, 2], 'b+', rss[1:, 0], rss[1:, 3], 'b+', rss[1:, 0], rss[1:, 4], 'b+')
 plot(1-y[:N//2], UU, 'r', 1-y[:N//2], VV-V*V, 'r', 1-y[:N//2], WW, 'r')
 
 plt.show()

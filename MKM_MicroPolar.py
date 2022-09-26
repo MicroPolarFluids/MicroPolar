@@ -35,6 +35,10 @@ class MKM(MicroPolar):
         self.sample_stats = sample_stats
         self.stats = Stats(N, self.B0.mesh(), self.TD.local_slice(False), filename=filename+'_stats')
         self.probes = Probe(probes, {'u': self.u_, 'w': self.w_}, filename=filename) if probes is not None else None
+        TL = self.TC.get_unplanned()
+        TL[0].quad = 'GL'
+        self.TL = TensorProductSpace(comm, TL, slab=True) # Use this space to get dvdx on the walls. GL is Gauss-Lobatto, which includes the wall
+        self.dvdx = Project(grad(self.u_[1])[0], self.TL) # This is a class used to compute dvdx on GL points
 
     def initialize(self, from_checkpoint=False):
         if from_checkpoint:
@@ -130,10 +134,20 @@ class MKM(MicroPolar):
             q = inner(1, ub[1])
             divu = self.divu().backward()
             e3 = np.sqrt(inner(1, divu*divu))
+            # Find utau
+            dvdx = self.dvdx().backward()
+            utau0 = 0 # at x = -1
+            utau1 = 0 # at x = 1
+            if self.TL.local_slice(False)[0].start == 0: # The processor that owns the plane x = -1
+                utau0 = np.mean(np.sqrt(np.abs(self.nu*dvdx[0])))
+            if self.TL.local_slice(False)[0].stop == self.N[0]: # The processors that owns the plane x = 1
+                utau1 = np.mean(np.sqrt(np.abs(self.nu*dvdx[-1])))
+            utau = comm.reduce(utau0+utau1)
             if comm.Get_rank() == 0:
+                utau = utau/2
                 if tstep % (10*self.moderror) == 0 or tstep == 0:
-                    print(f"{'Time':^11}{'uu':^11}{'vv':^11}{'ww':^11}{'a0*a0':^11}{'a1*a1':^11}{'a2*a2':^11}{'flux':^11}{'div':^11}")
-                print(f"{t:2.4e} {e0:2.4e} {e1:2.4e} {e2:2.4e} {d0:2.4e} {d1:2.4e} {d2:2.4e} {q:2.4e} {e3:2.4e}")
+                    print(f"{'Time':^11}{'uu':^11}{'vv':^11}{'ww':^11}{'a0*a0':^11}{'a1*a1':^11}{'a2*a2':^11}{'flux':^11}{'div':^11}{'utau':^11}")
+                print(f"{t:2.4e} {e0:2.4e} {e1:2.4e} {e2:2.4e} {d0:2.4e} {d1:2.4e} {d2:2.4e} {q:2.4e} {e3:2.4e} {utau:2.4e}")
 
     def update(self, t, tstep):
         self.plot(t, tstep)
