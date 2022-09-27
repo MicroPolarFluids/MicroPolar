@@ -262,6 +262,10 @@ class Stats:
         self.UU = np.zeros((6, M))
         self.WW = np.zeros((6, M))
         self.UW = np.zeros((9, M)) # Not symmetric
+        self.Ry = np.zeros((6, N[1]//2, M))
+        self.Rz = np.zeros((6, N[2]//2, M))
+        self.R = (self.Ry, self.Rz)
+        self.symind = ((0, 0), (1, 1), (2, 2), (0, 1), (0, 2), (1, 2))
         self.num_samples = 0
         self.fname = filename
         self.f0 = None
@@ -276,6 +280,9 @@ class Stats:
         self.f0.create_group("Average Angular Velocity")
         self.f0.create_group("Reynolds Stress Angular Velocity")
         self.f0.create_group("Cross Velocity Angular Velocity")
+        self.f0.create_group("Two-point Y Correlations Velocity")
+        self.f0.create_group("Two-point Z Correlations Velocity")
+
         for i in ("U", "V", "W"):
             self.f0["Average Velocity"].create_dataset(i, shape=(self.N[0],), dtype=float)
             self.f0["Average Angular Velocity"].create_dataset(i, shape=(self.N[0],), dtype=float)
@@ -286,6 +293,8 @@ class Stats:
         for i in ("UU", "VV", "WW", "UV", "UW", "VW"):
             self.f0["Reynolds Stress Velocity"].create_dataset(i, shape=(self.N[0],), dtype=float)
             self.f0["Reynolds Stress Angular Velocity"].create_dataset(i, shape=(self.N[0],), dtype=float)
+            self.f0["Two-point Y Correlations Velocity"].create_dataset(i, shape=(self.N[1]//2, self.N[0]), dtype=float)
+            self.f0["Two-point Z Correlations Velocity"].create_dataset(i, shape=(self.N[2]//2, self.N[0]), dtype=float)
         for i in ("UU", "UV", "UW", "VU", "VV", "VW", "WU", "WV", "WW"):
             self.f0["Cross Velocity Angular Velocity"].create_dataset(i, shape=(self.N[0],), dtype=float)
 
@@ -314,6 +323,13 @@ class Stats:
         self.UW[6] += np.sum(U[2]*W[0], axis=(1, 2))
         self.UW[7] += np.sum(U[2]*W[1], axis=(1, 2))
         self.UW[8] += np.sum(U[2]*W[2], axis=(1, 2))
+        for i in (0, 1): # y/z directions
+            for j in range(6): # UU, VV, WW, UV, UW, VW
+                R = self.R[i][j]
+                k, l = self.symind[j]
+                for n in range(R.shape[0]): # n*dy/n*dz
+                    R[n] += np.sum(U[k].take(range(0, self.N[i+1]), axis=i+1, mode='wrap')*U[l].take(range(n, self.N[i+1]+n), axis=i+1, mode='wrap'), axis=(1, 2))
+
         self.get_stats()
 
     def get_stats(self, tofile=True):
@@ -330,9 +346,12 @@ class Stats:
                 self.f0["Average Velocity/"+name][s] = self.Umean[i]/Nd
                 self.f0["Average Angular Velocity/"+name][s] = self.Wmean[i]/Nd
 
+            sl = (slice(None), s)
             for i, name in enumerate(("UU", "VV", "WW", "UV", "UW", "VW")):
                 self.f0["Reynolds Stress Velocity/"+name][s] = self.UU[i]/Nd
                 self.f0["Reynolds Stress Angular Velocity/"+name][s] = self.WW[i]/Nd
+                self.f0["Two-point Y Correlations Velocity/"+name][sl] = self.Ry[i]/Nd
+                self.f0["Two-point Z Correlations Velocity/"+name][sl] = self.Rz[i]/Nd
 
             for i, name in enumerate(("UU", "UV", "UW", "VU", "VV", "VW", "WU", "WV", "WW")):
                 self.f0["Cross Velocity Angular Velocity/"+name][s] = self.UW[i]/Nd
@@ -350,7 +369,10 @@ class Stats:
                     np.array([f0[f'Average Angular Velocity/{name}'] for name in 'UVW']),
                     np.array([f0[f'Reynolds Stress Velocity/{name}'] for name in ('UU', 'VV', 'WW', 'UV', 'UW', 'VW')]),
                     np.array([f0[f'Reynolds Stress Angular Velocity/{name}'] for name in ('UU', 'VV', 'WW', 'UV', 'UW', 'VW')]),
-                    np.array([f0[f'Cross Velocity Angular Velocity/{name}'] for name in ('UU', 'UV', 'UW', 'VU', 'VV', 'VW', 'WU', 'WV', 'WW')]))
+                    np.array([f0[f'Cross Velocity Angular Velocity/{name}'] for name in ('UU', 'UV', 'UW', 'VU', 'VV', 'VW', 'WU', 'WV', 'WW')]),
+                    np.array([f0[f'Two-point Y Correlations Velocity/{name}'] for name in ('UU', 'VV', 'WW', 'UV', 'UW', 'VW')]),
+                    np.array([f0[f'Two-point Z Correlations Velocity/{name}'] for name in ('UU', 'VV', 'WW', 'UV', 'UW', 'VW')]))
+
             f0.close()
             return data
 
@@ -388,24 +410,24 @@ if __name__ == '__main__':
     d = {
         'N': N,
         'Re': 180.,
-        'dt': 0.01,
+        'dt': 0.005,
         'utau': 0.0634,
         'umean': 1,
         'filename': f'MKM_MP_{N[0]}_{N[1]}_{N[2]}',
         'conv': 1,
         'modplot': 10,
         'modsave': 100,
-        'moderror': 1,
+        'moderror': 10,
         'family': 'C',
         'checkpoint': 100,
         'sample_stats': 100,
         'padding_factor': (1.5, 1.5, 1.5),
         'probes': None, #np.array([[0.1, 0.2], [0, 0], [0, 0]]), # Two probes at (0.1, 0, 0) and (0.2, 0, 0).
-        'timestepper': 'IMEXRK222', # IMEXRK222, IMEXRK443
+        'timestepper': 'IMEXRK222', # IMEXRK222, IMEXRK443, IMEXRK3
         }
     c = MKM(**d)
-    t, tstep = c.initialize(from_checkpoint=False)
-    c.solve(t=t, tstep=tstep, end_time=1)
+    t, tstep = c.initialize(from_checkpoint=True)
+    c.solve(t=0, tstep=0, end_time=1)
     print('Computing time %2.4f'%(time()-t0))
     if comm.Get_rank() == 0:
         generate_xdmf('_'.join((d['filename'], 'U'))+'.h5')
