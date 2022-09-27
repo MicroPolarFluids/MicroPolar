@@ -15,6 +15,8 @@ class MKM(MicroPolar):
                  NP=8.3e4,
                  dt=0.1,
                  conv=0,
+                 utau=0.0634,
+                 umean=1,
                  modplot=100,
                  modsave=1e8,
                  moderror=100,
@@ -26,12 +28,13 @@ class MKM(MicroPolar):
                  timestepper='IMEXRK3',
                  probes=None,
                  rand=1e-7):
-        MicroPolar.__init__(self, N=N, domain=domain, Re=Re, J=J, m=m, NP=NP, dt=dt, conv=conv, modplot=modplot,
+        MicroPolar.__init__(self, N=N, domain=domain, Re=Re, J=J, m=m, NP=NP, dt=dt, conv=conv, utau=utau, modplot=modplot,
                             modsave=modsave, moderror=moderror, filename=filename, family=family,
                             padding_factor=padding_factor, checkpoint=checkpoint, timestepper=timestepper)
         self.rand = rand
         self.Volume = inner(1, Array(self.TD, val=1))
-        self.flux = np.array([618.97]) # Re_tau=180
+        #self.flux = np.array([618.97]) # Re_tau=180
+        self.flux = np.array([self.Volume*umean])
         self.sample_stats = sample_stats
         self.stats = Stats(N, self.B0.mesh(), self.TD.local_slice(False), filename=filename+'_stats')
         self.probes = Probe(probes, {'u': self.u_, 'w': self.w_}, filename=filename) if probes is not None else None
@@ -385,7 +388,9 @@ if __name__ == '__main__':
     d = {
         'N': N,
         'Re': 180.,
-        'dt': 0.00025,
+        'dt': 0.01,
+        'utau': 0.0634,
+        'umean': 1,
         'filename': f'MKM_MP_{N[0]}_{N[1]}_{N[2]}',
         'conv': 1,
         'modplot': 10,
@@ -400,7 +405,7 @@ if __name__ == '__main__':
         }
     c = MKM(**d)
     t, tstep = c.initialize(from_checkpoint=False)
-    c.solve(t=t, tstep=tstep, end_time=0.005)
+    c.solve(t=t, tstep=tstep, end_time=1)
     print('Computing time %2.4f'%(time()-t0))
     if comm.Get_rank() == 0:
         generate_xdmf('_'.join((d['filename'], 'U'))+'.h5')

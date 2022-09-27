@@ -62,6 +62,7 @@ class MicroPolar(KMM):
                  NP=8.3e4,
                  dt=0.001,
                  conv=0,
+                 utau=1,
                  filename='MicroPolar',
                  family='C',
                  padding_factor=(1, 1.5, 1.5),
@@ -70,8 +71,7 @@ class MicroPolar(KMM):
                  moderror=100,
                  checkpoint=1000,
                  timestepper='IMEXRK3'):
-        utau = self.utau = 1
-        KMM.__init__(self, N=N, domain=domain, nu=1/Re, dt=dt, conv=conv,
+        KMM.__init__(self, N=N, domain=domain, nu=utau/Re, dt=dt, conv=conv,
                      filename=filename, family=family, padding_factor=padding_factor,
                      modplot=modplot, modsave=modsave, moderror=moderror, dpdy=-utau**2,
                      checkpoint=checkpoint, timestepper=timestepper)
@@ -79,6 +79,7 @@ class MicroPolar(KMM):
         self.J = J
         self.m = m
         self.NP = NP
+        self.utau = utau
 
         # New spaces and Functions used by micropolar model
         self.WC = VectorSpace(self.TC)   # Curl curl vector space
