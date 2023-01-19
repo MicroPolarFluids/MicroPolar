@@ -15,8 +15,7 @@ class MKM(MicroPolar):
                  NP=8.3e4,
                  dt=0.1,
                  conv=0,
-                 utau=0.0634,
-                 umean=1,
+                 utau=1,
                  modplot=100,
                  modsave=1e8,
                  moderror=100,
@@ -33,8 +32,7 @@ class MKM(MicroPolar):
                             padding_factor=padding_factor, checkpoint=checkpoint, timestepper=timestepper)
         self.rand = rand
         self.Volume = inner(1, Array(self.TD, val=1))
-        #self.flux = np.array([618.97]) # Re_tau=180
-        self.flux = np.array([self.Volume*umean])
+        self.flux = np.array([618.97]) # Re_tau=180. This is 4*np.pi**2*15.67, where 15.67 = Umean/utau
         self.sample_stats = sample_stats
         self.stats = Stats(N, self.B0.mesh(), self.TD.local_slice(False), filename=filename+'_stats')
         self.probes = Probe(probes, {'u': self.u_, 'w': self.w_}, filename=filename) if probes is not None else None
@@ -51,10 +49,10 @@ class MKM(MicroPolar):
         Y = np.where(X[0] < 0, 1+X[0], 1-X[0])
         utau = self.nu*self.Re
         Um = 46.9091*utau # For Re=180
-        #Um = 56.*utau
-        Xplus = Y*self.Re
-        Yplus = X[1]*self.Re
-        Zplus = X[2]*self.Re
+        Re = self.Re
+        Xplus = Y*Re
+        Yplus = X[1]*Re
+        Zplus = X[2]*Re
         duplus = Um*0.2/utau  #Um*0.25/utau
         alfaplus = self.F1.domain[1]/200.  # May have to adjust these two for different Re
         betaplus = self.F2.domain[1]/100.  #
@@ -181,7 +179,8 @@ class MKM(MicroPolar):
             beta = inner(1, ub1)
             q = (self.flux[0] - beta)
             if comm.Get_rank() == 0:
-                self.u_[1, 0, 0, 0] += q/self.Volume
+                #self.u_[1, 0, 0, 0] += q/self.Volume
+                self.u_[1, :, 0, 0] *= (1+q/self.Volume/self.u_[1, 0, 0, 0])
 
 
 class Probe:
@@ -406,15 +405,16 @@ if __name__ == '__main__':
     from time import time
     from mpi4py_fft import generate_xdmf
     t0 = time()
-    N = (128, 128, 64)
+    #N = (128, 128, 64)
+    N = (32, 32, 32)
     d = {
         'N': N,
         'Re': 180.,
-        'dt': 0.005,
-        'utau': 0.0634,
-        'umean': 1,
+        'dt': 0.001,
+        'utau': 1.0,
         'filename': f'MKM_MP_{N[0]}_{N[1]}_{N[2]}',
         'conv': 1,
+        'm': 0.01,
         'modplot': 10,
         'modsave': 100,
         'moderror': 10,
@@ -426,9 +426,10 @@ if __name__ == '__main__':
         'timestepper': 'IMEXRK222', # IMEXRK222, IMEXRK443, IMEXRK3
         }
     c = MKM(**d)
-    t, tstep = c.initialize(from_checkpoint=True)
-    c.solve(t=0, tstep=0, end_time=1)
-    print('Computing time %2.4f'%(time()-t0))
+    t, tstep = c.initialize(from_checkpoint=False)
+    c.solve(t=0, tstep=0, end_time=100)
+    #print('Computing time %2.4f'%(time()-t0))
+    #print(c.TB.local_slice(False), c.ub.shape)
     if comm.Get_rank() == 0:
         generate_xdmf('_'.join((d['filename'], 'U'))+'.h5')
         generate_xdmf('_'.join((d['filename'], 'W'))+'.h5')
