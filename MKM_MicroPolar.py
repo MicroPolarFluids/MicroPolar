@@ -264,6 +264,10 @@ class Stats:
         self.Ry = np.zeros((6, N[1]//2, M))
         self.Rz = np.zeros((6, N[2]//2, M))
         self.R = (self.Ry, self.Rz)
+        self.helicitypdf = np.zeros((M, 36))
+        self.Hmean = np.zeros(M)
+        self.Hvar = np.zeros(M)
+        self.bins = np.linspace(-1, 1, 37)
         self.symind = ((0, 0), (1, 1), (2, 2), (0, 1), (0, 2), (1, 2))
         self.num_samples = 0
         self.fname = filename
@@ -281,6 +285,7 @@ class Stats:
         self.f0.create_group("Cross Velocity Angular Velocity")
         self.f0.create_group("Two-point Y Correlations Velocity")
         self.f0.create_group("Two-point Z Correlations Velocity")
+        self.f0.create_group("Helicity")
 
         for i in ("U", "V", "W"):
             self.f0["Average Velocity"].create_dataset(i, shape=(self.N[0],), dtype=float)
@@ -296,6 +301,10 @@ class Stats:
             self.f0["Two-point Z Correlations Velocity"].create_dataset(i, shape=(self.N[2]//2, self.N[0]), dtype=float)
         for i in ("UU", "UV", "UW", "VU", "VV", "VW", "WU", "WV", "WW"):
             self.f0["Cross Velocity Angular Velocity"].create_dataset(i, shape=(self.N[0],), dtype=float)
+
+        self.f0["Helicity"].create_dataset("PDF", shape=(self.N[0], 36), dtype=float)
+        self.f0["Helicity"].create_dataset("Hmean", shape=(self.N[0],), dtype=float)
+        self.f0["Helicity"].create_dataset("Hvar", shape=(self.N[0],), dtype=float)
 
     def __call__(self, U, W):
         self.num_samples += 1
@@ -329,6 +338,17 @@ class Stats:
                 for n in range(R.shape[0]): # n*dy/n*dz
                     R[n] += np.sum(U[k].take(range(0, self.N[i+1]), axis=i+1, mode='wrap')*U[l].take(range(n, self.N[i+1]+n), axis=i+1, mode='wrap'), axis=(1, 2))
 
+        Nd = self.num_samples*self.Q
+        Up = U-self.Umean[:, :, None, None]/Nd
+        Wp = W-self.Wmean[:, :, None, None]/Nd
+        H = np.sum(Up*Wp, axis=0)
+        Umag = np.sum(Up*Up, axis=0)
+        Wmag = np.sum(Wp*Wp, axis=0)
+        theta = H / (Umag*Wmag)
+        for i in range(theta.shape[0]):
+            self.helicitypdf[i] += np.histogram(theta[i], self.bins)[0]
+        self.Hmean += np.sum(H, axis=(1, 2))
+        self.Hvar += np.sum(H**2, axis=(1, 2))
         self.get_stats()
 
     def get_stats(self, tofile=True):
@@ -355,6 +375,10 @@ class Stats:
             for i, name in enumerate(("UU", "UV", "UW", "VU", "VV", "VW", "WU", "WV", "WW")):
                 self.f0["Cross Velocity Angular Velocity/"+name][s] = self.UW[i]/Nd
 
+            self.f0["Helicity/PDF"][s] = self.helicitypdf/Nd
+            self.f0["Helicity/Hmean"][s] = self.Hmean/Nd
+            self.f0["Helicity/Hvar"][s] = self.Hvar/Nd
+
             self.f0.attrs.create("num_samples", self.num_samples)
             self.f0.close()
 
@@ -370,7 +394,10 @@ class Stats:
                     np.array([f0[f'Reynolds Stress Angular Velocity/{name}'] for name in ('UU', 'VV', 'WW', 'UV', 'UW', 'VW')]),
                     np.array([f0[f'Cross Velocity Angular Velocity/{name}'] for name in ('UU', 'UV', 'UW', 'VU', 'VV', 'VW', 'WU', 'WV', 'WW')]),
                     np.array([f0[f'Two-point Y Correlations Velocity/{name}'] for name in ('UU', 'VV', 'WW', 'UV', 'UW', 'VW')]),
-                    np.array([f0[f'Two-point Z Correlations Velocity/{name}'] for name in ('UU', 'VV', 'WW', 'UV', 'UW', 'VW')]))
+                    np.array([f0[f'Two-point Z Correlations Velocity/{name}'] for name in ('UU', 'VV', 'WW', 'UV', 'UW', 'VW')]),
+                    np.array([f0['Helicity/PDF']]),
+                    np.array([f0['Helicity/Hmean']]),
+                    np.array([f0['Helicity/Hvar']]))
 
             f0.close()
             return data
@@ -382,6 +409,11 @@ class Stats:
         self.UU[:] = 0
         self.WW[:] = 0
         self.UW[:] = 0
+        self.Ry[:] = 0
+        self.Rz[:] = 0
+        self.helicitypdf[:] = 0
+        self.Hmean[:] = 0
+        self.Hvar[:] = 0
 
     def fromfile(self, filename="stats"):
         self.fname = filename
@@ -398,6 +430,12 @@ class Stats:
             self.WW[i, :] = self.f0["Reynolds Stress Angular Velocity/"+name][s]*Nd
         for i, name in enumerate(("UU", "UV", "UW", "VU", "VV", "VW", "WU", "WV", "WW")):
             self.UW[i, :] = self.f0["Cross Velocity Angular Velocity/"+name][s]*Nd
+        for j, name in enumerate(("UU", "VV", "WW", "UV", "UW", "VW")):
+            self.R[0][j, :] = self.f0['Two-point Y Correlations Velocity/'+name][s]*Nd
+            self.R[1][j, :] = self.f0['Two-point Z Correlations Velocity/'+name][s]*Nd
+        self.helicitypdf[:] = self.f0['Helicity/PDF'][s]*Nd
+        self.Hmean[:] = self.f0['Helicity/Hmean'][s]*Nd
+        self.Hvar[:] = self.f0['Helicity/Hvar'][s]*Nd
         self.f0.close()
 
 
@@ -420,7 +458,7 @@ if __name__ == '__main__':
         'moderror': 10,
         'family': 'C',
         'checkpoint': 100,
-        'sample_stats': 100,
+        'sample_stats': 10,
         'padding_factor': (1.5, 1.5, 1.5),
         'probes': None, #np.array([[0.1, 0.2], [0, 0], [0, 0]]), # Two probes at (0.1, 0, 0) and (0.2, 0, 0).
         'timestepper': 'IMEXRK222', # IMEXRK222, IMEXRK443, IMEXRK3
