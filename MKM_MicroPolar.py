@@ -159,7 +159,10 @@ class MKM(MicroPolar):
         if tstep % self.sample_stats == 0:
             ub = self.u_.backward(self.ub)
             wb = self.w_.backward(self.wb)
-            self.stats(ub, wb)
+            self.curly() # Compute y-component of curl. Stored in self.curl[1]
+            self.curlz() # Compute z-component of curl. Stored in self.curl[2]
+            curl = self.curl.backward()
+            self.stats(ub, wb, curl)
             if self.probes is not None:
                 self.probes.tofile()
 
@@ -258,6 +261,8 @@ class Stats:
         self.Q = (self.s[1].stop-self.s[1].start)*(self.s[2].stop-self.s[2].start)
         self.Umean = np.zeros((3, M))
         self.Wmean = np.zeros((3, M))
+        self.Curlmean = np.zeros((3, M))
+        self.Curlvar = np.zeros(M)
         self.UU = np.zeros((6, M))
         self.WW = np.zeros((6, M))
         self.UW = np.zeros((9, M)) # Not symmetric
@@ -286,10 +291,13 @@ class Stats:
         self.f0.create_group("Two-point Y Correlations Velocity")
         self.f0.create_group("Two-point Z Correlations Velocity")
         self.f0.create_group("Helicity")
+        self.f0.create_group("Curl")
 
         for i in ("U", "V", "W"):
             self.f0["Average Velocity"].create_dataset(i, shape=(self.N[0],), dtype=float)
             self.f0["Average Angular Velocity"].create_dataset(i, shape=(self.N[0],), dtype=float)
+            self.f0["Curl"].create_dataset(i, shape=(self.N[0],), dtype=float)
+        self.f0["Curl"].create_dataset("Var", shape=(self.N[0],), dtype=float)
 
         # Note that all components have names UU, UV, UW etc. But her U, V and W simply indicate vector component
         # number 0, 1 and 2. So even though the angular velocity is stored as UU, UV, ..., it is still the angular
@@ -306,7 +314,8 @@ class Stats:
         self.f0["Helicity"].create_dataset("Hmean", shape=(self.N[0],), dtype=float)
         self.f0["Helicity"].create_dataset("Hvar", shape=(self.N[0],), dtype=float)
 
-    def __call__(self, U, W):
+
+    def __call__(self, U, W, curl):
         self.num_samples += 1
         self.Umean += np.sum(U, axis=(2, 3))
         self.Wmean += np.sum(W, axis=(2, 3))
@@ -339,8 +348,10 @@ class Stats:
                     R[n] += np.sum(U[k].take(range(0, self.N[i+1]), axis=i+1, mode='wrap')*U[l].take(range(n, self.N[i+1]+n), axis=i+1, mode='wrap'), axis=(1, 2))
 
         Nd = self.num_samples*self.Q
+        self.Curlmean += np.sum(curl, axis=(2, 3))
+        self.Curlvar += np.sum(curl*curl, axis=(0, 2, 3))
         Up = U-self.Umean[:, :, None, None]/Nd
-        Wp = W-self.Wmean[:, :, None, None]/Nd
+        Wp = curl-self.Curlmean[:, :, None, None]/Nd
         H = np.sum(Up*Wp, axis=0)
         Umag = np.sum(Up*Up, axis=0)
         Wmag = np.sum(Wp*Wp, axis=0)
@@ -364,6 +375,8 @@ class Stats:
             for i, name in enumerate(("U", "V", "W")):
                 self.f0["Average Velocity/"+name][s] = self.Umean[i]/Nd
                 self.f0["Average Angular Velocity/"+name][s] = self.Wmean[i]/Nd
+                self.f0["Curl/"+name][s] = self.Curlmean[i]/Nd
+            self.f0["Curl/Var"][s] = self.Curlvar/Nd
 
             sl = (slice(None), s)
             for i, name in enumerate(("UU", "VV", "WW", "UV", "UW", "VW")):
@@ -378,6 +391,7 @@ class Stats:
             self.f0["Helicity/PDF"][s] = self.helicitypdf/Nd
             self.f0["Helicity/Hmean"][s] = self.Hmean/Nd
             self.f0["Helicity/Hvar"][s] = self.Hvar/Nd
+            self.f0["Curl/Var"][s] = self.Curlvar/Nd
 
             self.f0.attrs.create("num_samples", self.num_samples)
             self.f0.close()
@@ -397,7 +411,9 @@ class Stats:
                     np.array([f0[f'Two-point Z Correlations Velocity/{name}'] for name in ('UU', 'VV', 'WW', 'UV', 'UW', 'VW')]),
                     np.array([f0['Helicity/PDF']]),
                     np.array([f0['Helicity/Hmean']]),
-                    np.array([f0['Helicity/Hvar']]))
+                    np.array([f0['Helicity/Hvar']]),
+                    np.array([f0[f'Curl/{name}'] for name in 'UVW']),
+                    np.array([f0['Curl/Var']]))
 
             f0.close()
             return data
@@ -414,6 +430,8 @@ class Stats:
         self.helicitypdf[:] = 0
         self.Hmean[:] = 0
         self.Hvar[:] = 0
+        self.Curlmean[:] = 0
+        self.Curlvar[:] = 0
 
     def fromfile(self, filename="stats"):
         self.fname = filename
@@ -425,6 +443,7 @@ class Stats:
         for i, name in enumerate(("U", "V", "W")):
             self.Umean[i, :] = self.f0["Average Velocity/"+name][s]*Nd
             self.Wmean[i, :] = self.f0["Average Angular Velocity/"+name][s]*Nd
+            self.Curlmean[i, :] = self.f0["Curl/"+name][s]*Nd
         for i, name in enumerate(("UU", "VV", "WW", "UV", "UW", "VW")):
             self.UU[i, :] = self.f0["Reynolds Stress Velocity/"+name][s]*Nd
             self.WW[i, :] = self.f0["Reynolds Stress Angular Velocity/"+name][s]*Nd
@@ -436,8 +455,8 @@ class Stats:
         self.helicitypdf[:] = self.f0['Helicity/PDF'][s]*Nd
         self.Hmean[:] = self.f0['Helicity/Hmean'][s]*Nd
         self.Hvar[:] = self.f0['Helicity/Hvar'][s]*Nd
+        self.Curlvar[:] = self.f0['Curl/Var'][s]*Nd
         self.f0.close()
-
 
 if __name__ == '__main__':
     from time import time
