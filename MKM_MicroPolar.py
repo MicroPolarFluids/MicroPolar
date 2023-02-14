@@ -353,8 +353,8 @@ class Stats:
         Up = U-self.Umean[:, :, None, None]/Nd
         Wp = curl-self.Curlmean[:, :, None, None]/Nd
         H = np.sum(Up*Wp, axis=0)
-        Umag = np.sqrt(sum(Up*Up, axis=0))
-        Wmag = np.sqrt(sum(Wp*Wp, axis=0))
+        Umag = np.sqrt(np.sum(Up*Up, axis=0))
+        Wmag = np.sqrt(np.sum(Wp*Wp, axis=0))
         theta = H / (Umag*Wmag)
         for i in range(theta.shape[0]):
             self.helicitypdf[i] += np.histogram(theta[i], self.bins)[0]
