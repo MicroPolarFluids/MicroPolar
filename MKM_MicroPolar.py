@@ -32,7 +32,7 @@ class MKM(MicroPolar):
                             padding_factor=padding_factor, checkpoint=checkpoint, timestepper=timestepper)
         self.rand = rand
         self.Volume = inner(1, Array(self.TD, val=1))
-        self.flux = np.array([2486.56]) # Re_tau=180. This is 4*np.pi**2*15.67, where 15.67 = Umean/utau
+        self.flux = np.array([2486.56]) # Re_tau=180. This is 16*np.pi**2*15.67, where 15.67 = Umean/utau
         self.sample_stats = sample_stats
         self.stats = Stats(N, self.B0.mesh(), self.TD.local_slice(False), filename=filename+'_stats')
         self.probes = Probe(probes, {'u': self.u_, 'w': self.w_}, filename=filename) if probes is not None else None
