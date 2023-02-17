@@ -7,11 +7,11 @@ import h5py
 class MKM(MicroPolar):
 
     def __init__(self,
-                 N=(32, 32, 32),
-                 domain=((-1, 1), (0, 2*np.pi), (0, np.pi)),
+                 N=(128, 128, 64),
+                 domain=((-1, 1), (0, 4*np.pi), (0, 2*np.pi)),
                  Re=180.,
                  J=1e-5,
-                 m=0.1,
+                 m=0.001,
                  NP=8.3e4,
                  dt=0.1,
                  conv=0,
@@ -32,7 +32,7 @@ class MKM(MicroPolar):
                             padding_factor=padding_factor, checkpoint=checkpoint, timestepper=timestepper)
         self.rand = rand
         self.Volume = inner(1, Array(self.TD, val=1))
-        self.flux = np.array([618.97]) # Re_tau=180. This is 4*np.pi**2*15.67, where 15.67 = Umean/utau
+        self.flux = np.array([2486.56]) # Re_tau=180. This is 4*np.pi**2*15.67, where 15.67 = Umean/utau
         self.sample_stats = sample_stats
         self.stats = Stats(N, self.B0.mesh(), self.TD.local_slice(False), filename=filename+'_stats')
         self.probes = Probe(probes, {'u': self.u_, 'w': self.w_}, filename=filename) if probes is not None else None
@@ -269,9 +269,18 @@ class Stats:
         self.Ry = np.zeros((6, N[1]//2, M))
         self.Rz = np.zeros((6, N[2]//2, M))
         self.R = (self.Ry, self.Rz)
-        self.helicitypdf = np.zeros((M, 36))
-        self.Hmean = np.zeros(M)
-        self.Hvar = np.zeros(M)
+        self.helicity_pdf = np.zeros((M, 36))
+        self.helicity_prime_pdf = np.zeros((M, 36))
+        self.helicity_micro_pdf = np.zeros((M, 36))
+        self.helicity_micro_prime_pdf = np.zeros((M, 36))
+        self.H_mean = np.zeros(M)
+        self.H_prime_mean = np.zeros(M)
+        self.H_micro_mean = np.zeros(M)
+        self.H_micro_prime_mean = np.zeros(M)
+        self.H_var = np.zeros(M)
+        self.H_prime_var = np.zeros(M)
+        self.H_micro_var = np.zeros(M)
+        self.H_micro_prime_var = np.zeros(M)
         self.bins = np.linspace(-1, 1, 37)
         self.symind = ((0, 0), (1, 1), (2, 2), (0, 1), (0, 2), (1, 2))
         self.num_samples = 0
@@ -291,6 +300,9 @@ class Stats:
         self.f0.create_group("Two-point Y Correlations Velocity")
         self.f0.create_group("Two-point Z Correlations Velocity")
         self.f0.create_group("Helicity")
+        self.f0.create_group("Helicity_Prime")
+        self.f0.create_group("Helicity_Micro")
+        self.f0.create_group("Helicity_Micro_Prime")
         self.f0.create_group("Curl")
 
         for i in ("U", "V", "W"):
@@ -313,6 +325,19 @@ class Stats:
         self.f0["Helicity"].create_dataset("PDF", shape=(self.N[0], 36), dtype=float)
         self.f0["Helicity"].create_dataset("Hmean", shape=(self.N[0],), dtype=float)
         self.f0["Helicity"].create_dataset("Hvar", shape=(self.N[0],), dtype=float)
+
+        self.f0["Helicity_Prime"].create_dataset("PDF", shape=(self.N[0], 36), dtype=float)
+        self.f0["Helicity_Prime"].create_dataset("Hmean", shape=(self.N[0],), dtype=float)
+        self.f0["Helicity_Prime"].create_dataset("Hvar", shape=(self.N[0],), dtype=float)
+
+        self.f0["Helicity_Micro"].create_dataset("PDF", shape=(self.N[0], 36), dtype=float)
+        self.f0["Helicity_Micro"].create_dataset("Hmean", shape=(self.N[0],), dtype=float)
+        self.f0["Helicity_Micro"].create_dataset("Hvar", shape=(self.N[0],), dtype=float)
+
+        self.f0["Helicity_Micro_Prime"].create_dataset("PDF", shape=(self.N[0], 36), dtype=float)
+        self.f0["Helicity_Micro_Prime"].create_dataset("Hmean", shape=(self.N[0],), dtype=float)
+        self.f0["Helicity_Micro_Prime"].create_dataset("Hvar", shape=(self.N[0],), dtype=float)
+
 
 
     def __call__(self, U, W, curl):
@@ -350,17 +375,59 @@ class Stats:
         Nd = self.num_samples*self.Q
         self.Curlmean += np.sum(curl, axis=(2, 3))
         self.Curlvar += np.sum(curl*curl, axis=(0, 2, 3))
-        Up = U-self.Umean[:, :, None, None]/Nd
-        Wp = curl-self.Curlmean[:, :, None, None]/Nd
-        H = np.sum(Up*Wp, axis=0)
-        Umag = np.sqrt(np.sum(Up*Up, axis=0))
-        Wmag = np.sqrt(np.sum(Wp*Wp, axis=0))
-        theta = H / (Umag*Wmag)
+
+        ###########-- Fluctuations --############################
+        Up = U-self.Umean[:, :, None, None]/Nd          #Hydrod. Velocity fluct.
+        Vorp = curl-self.Curlmean[:, :, None, None]/Nd  #Vorticity fluct.
+        Wp = W - self.Wmean[:, :, None, None]/Nd        #Microp. Velocity fluct.
+        
+        ###########-- Helicity Density --#########################
+        H = np.sum(U*curl, axis=0)          #Hydrod. Helicity Density
+        Hm = np.sum(U*W, axis=0)            #Microp. Helicity Density
+        H_prime = np.sum(Up*Vorp, axis=0)   #Hydrod. Prime Helicity Density
+        Hm_prime = np.sum(Up*Wp, axis=0)    #Microp. Prime Helicity Density
+
+        ###########-- Magnitudes --#########################
+        Umag = np.sqrt(np.sum(U*U, axis=0))
+        Vormag = np.sqrt(np.sum(curl*curl, axis=0)) 
+        Wmag = np.sqrt(np.sum(W*W, axis=0))
+
+        Upmag = np.sqrt(np.sum(Up*Up, axis=0))
+        Vorpmag = np.sqrt(np.sum(Vorp*Vorp, axis=0)) 
+        Wpmag = np.sqrt(np.sum(Wp*Wp, axis=0))   
+
+        ###########-- Theta Values --#########################
+        theta = H / (Umag*Vormag)
         for i in range(theta.shape[0]):
-            self.helicitypdf[i] += np.histogram(theta[i], self.bins)[0]
-        self.Hmean += np.sum(H, axis=(1, 2))
-        self.Hvar += np.sum(H**2, axis=(1, 2))
+            self.helicity_pdf[i] += np.histogram(theta[i], self.bins)[0]
+        self.H_mean += np.sum(H, axis=(1, 2))
+        self.H_var += np.sum(H**2, axis=(1, 2))
         self.get_stats()
+
+        theta_prime = H_prime / (Upmag*Vorpmag)
+        for i in range(theta_prime.shape[0]):
+            self.helicity_prime_pdf[i] += np.histogram(theta_prime[i], self.bins)[0]
+        self.H_prime_mean += np.sum(H_prime, axis=(1, 2))
+        self.H_prime_var += np.sum(H_prime**2, axis=(1, 2))
+        self.get_stats()
+
+        theta_micro = Hm / (Umag*Wmag)
+        for i in range(theta_micro.shape[0]):
+            self.helicity_micro_pdf[i] += np.histogram(theta_micro[i], self.bins)[0]
+        self.H_micro_mean += np.sum(Hm, axis=(1, 2))
+        self.H_micro_var += np.sum(Hm**2, axis=(1, 2))
+        self.get_stats()
+
+        theta_micro_prime = Hm_prime / (Upmag*Wpmag)
+        for i in range(theta_micro_prime.shape[0]):
+            self.helicity_micro_prime_pdf[i] += np.histogram(theta_micro_prime[i], self.bins)[0]
+        self.H_micro_prime_mean += np.sum(Hm_prime, axis=(1, 2))
+        self.H_micro_prime_var += np.sum(Hm_prime**2, axis=(1, 2))
+        self.get_stats()
+
+        #########################################################
+
+
 
     def get_stats(self, tofile=True):
         s = self.s[0]
@@ -388,9 +455,23 @@ class Stats:
             for i, name in enumerate(("UU", "UV", "UW", "VU", "VV", "VW", "WU", "WV", "WW")):
                 self.f0["Cross Velocity Angular Velocity/"+name][s] = self.UW[i]/Nd
 
-            self.f0["Helicity/PDF"][s] = self.helicitypdf/Nd
-            self.f0["Helicity/Hmean"][s] = self.Hmean/Nd
-            self.f0["Helicity/Hvar"][s] = self.Hvar/Nd
+            self.f0["Helicity/PDF"][s] = self.helicity_pdf/Nd
+            self.f0["Helicity/Hmean"][s] = self.H_mean/Nd
+            self.f0["Helicity/Hvar"][s] = self.H_var/Nd
+
+            self.f0["Helicity_Prime/PDF"][s] = self.helicity_prime_pdf/Nd
+            self.f0["Helicity_Prime/Hmean"][s] = self.H_prime_mean/Nd
+            self.f0["Helicity_Prime/Hvar"][s] = self.H_prime_var/Nd
+
+            self.f0["Helicity_Micro/PDF"][s] = self.helicity_micro_pdf/Nd
+            self.f0["Helicity_Micro/Hmean"][s] = self.H_micro_mean/Nd
+            self.f0["Helicity_Micro/Hvar"][s] = self.H_micro_var/Nd
+
+            self.f0["Helicity_Micro_Prime/PDF"][s] = self.helicity_micro_prime_pdf/Nd
+            self.f0["Helicity_Micro_Prime/Hmean"][s] = self.H_micro_prime_mean/Nd
+            self.f0["Helicity_Micro_Prime/Hvar"][s] = self.H_micro_prime_var/Nd
+
+
             self.f0["Curl/Var"][s] = self.Curlvar/Nd
 
             self.f0.attrs.create("num_samples", self.num_samples)
@@ -412,6 +493,15 @@ class Stats:
                     np.array([f0['Helicity/PDF']]),
                     np.array([f0['Helicity/Hmean']]),
                     np.array([f0['Helicity/Hvar']]),
+                    np.array([f0['Helicity_Prime/PDF']]),
+                    np.array([f0['Helicity_Prime/Hmean']]),
+                    np.array([f0['Helicity_Prime/Hvar']]),
+                    np.array([f0['Helicity_Micro/PDF']]),
+                    np.array([f0['Helicity_Micro/Hmean']]),
+                    np.array([f0['Helicity_Micro/Hvar']]),
+                    np.array([f0['Helicity_Micro_Prime/PDF']]),
+                    np.array([f0['Helicity_Micro_Prime/Hmean']]),
+                    np.array([f0['Helicity_Micro_Prime/Hvar']]),
                     np.array([f0[f'Curl/{name}'] for name in 'UVW']),
                     np.array([f0['Curl/Var']]))
 
@@ -427,9 +517,18 @@ class Stats:
         self.UW[:] = 0
         self.Ry[:] = 0
         self.Rz[:] = 0
-        self.helicitypdf[:] = 0
-        self.Hmean[:] = 0
-        self.Hvar[:] = 0
+        self.helicity_pdf[:] = 0
+        self.H_mean[:] = 0
+        self.H_var[:] = 0
+        self.helicity_prime_pdf[:] = 0
+        self.H_prime_mean[:] = 0
+        self.H_prime_var[:] = 0
+        self.helicity_micro_pdf[:] = 0
+        self.H_micro_mean[:] = 0
+        self.H_micro_var[:] = 0
+        self.helicity_micro_prime_pdf[:] = 0
+        self.H_micro_prime_mean[:] = 0
+        self.H_micro_prime_var[:] = 0
         self.Curlmean[:] = 0
         self.Curlvar[:] = 0
 
@@ -452,9 +551,18 @@ class Stats:
         for j, name in enumerate(("UU", "VV", "WW", "UV", "UW", "VW")):
             self.R[0][j, :] = self.f0['Two-point Y Correlations Velocity/'+name][s]*Nd
             self.R[1][j, :] = self.f0['Two-point Z Correlations Velocity/'+name][s]*Nd
-        self.helicitypdf[:] = self.f0['Helicity/PDF'][s]*Nd
-        self.Hmean[:] = self.f0['Helicity/Hmean'][s]*Nd
-        self.Hvar[:] = self.f0['Helicity/Hvar'][s]*Nd
+        self.helicity_pdf[:] = self.f0['Helicity/PDF'][s]*Nd
+        self.H_mean[:] = self.f0['Helicity/Hmean'][s]*Nd
+        self.H_var[:] = self.f0['Helicity/Hvar'][s]*Nd
+        self.helicity_prime_pdf[:] = self.f0['Helicity_Prime/PDF'][s]*Nd
+        self.H_prime_mean[:] = self.f0['Helicity_Prime/Hmean'][s]*Nd
+        self.H_prime_var[:] = self.f0['Helicity_Prime/Hvar'][s]*Nd
+        self.helicity_micro_pdf[:] = self.f0['Helicity_Micro/PDF'][s]*Nd
+        self.H_micro_mean[:] = self.f0['Helicity_Micro/Hmean'][s]*Nd
+        self.H_micro_var[:] = self.f0['Helicity_Micro/Hvar'][s]*Nd
+        self.helicity_micro_prime_pdf[:] = self.f0['Helicity_Micro_Prime/PDF'][s]*Nd
+        self.H_micro_prime_mean[:] = self.f0['Helicity_Micro_Prime/Hmean'][s]*Nd
+        self.H_micro_prime_var[:] = self.f0['Helicity_Micro_Prime/Hvar'][s]*Nd
         self.Curlvar[:] = self.f0['Curl/Var'][s]*Nd
         self.f0.close()
 
@@ -462,12 +570,12 @@ if __name__ == '__main__':
     from time import time
     from mpi4py_fft import generate_xdmf
     t0 = time()
-    #N = (128, 128, 64)
-    N = (32, 32, 32)
+    N = (128, 128, 64)
+    #N = (32, 32, 32)
     d = {
         'N': N,
         'Re': 180.,
-        'dt': 0.001,
+        'dt': 0.0005,
         'utau': 1.0,
         'filename': f'MKM_MP_{N[0]}_{N[1]}_{N[2]}',
         'conv': 1,
