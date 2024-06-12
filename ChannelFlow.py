@@ -1,6 +1,5 @@
 from warnings import WarningMessage
 from shenfun import *
-np.warnings.filterwarnings('ignore')
 
 class KMM:
     """Navier Stokes channel flow solver

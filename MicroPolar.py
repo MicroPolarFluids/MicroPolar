@@ -1,7 +1,6 @@
 from random import sample
 from shenfun import *
 from ChannelFlow import KMM
-np.warnings.filterwarnings('ignore')
 
 class MicroPolar(KMM):
     """Micropolar channel flow solver
@@ -170,6 +169,8 @@ class MicroPolar(KMM):
         return t, tstep
 
     def convection(self):
+        self.curlwx()
+        self.curlcurlwx()
         KMM.convection(self)
         HW = self.HW_
         up = self.up

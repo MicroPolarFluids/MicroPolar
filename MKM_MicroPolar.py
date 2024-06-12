@@ -106,17 +106,14 @@ class MKM(MicroPolar):
             ub = self.u_.backward(self.ub)
             if comm.Get_rank() == 0:
                 X = self.X
-                self.im1.axes.clear()
                 self.im1.axes.contourf(X[1][:, :, 0], X[0][:, :, 0], ub[0, :, :, 0], 100)
                 self.im1.autoscale()
                 plt.figure(1)
                 plt.pause(1e-6)
-                self.im2.axes.clear()
                 self.im2.axes.contourf(X[1][:, :, 0], X[0][:, :, 0], ub[1, :, :, 0], 100)
                 self.im2.autoscale()
                 plt.figure(2)
                 plt.pause(1e-6)
-                self.im3.axes.clear()
                 self.im3.axes.contourf(X[2][:, 0, :], X[0][:, 0, :], ub[0, :, 0, :], 100)
                 self.im3.autoscale()
                 plt.figure(3)
@@ -156,7 +153,7 @@ class MKM(MicroPolar):
         if self.probes is not None:
             self.probes()
 
-        if tstep % self.sample_stats == 0:
+        if tstep % self.sample_stats == 0:        
             ub = self.u_.backward(self.ub)
             wb = self.w_.backward(self.wb)
             self.curly() # Compute y-component of curl. Stored in self.curl[1]
@@ -170,7 +167,6 @@ class MKM(MicroPolar):
                 stats = self.stats.get_stats()
                 u0, w0 = stats[:2]
                 x = c.B0.mesh(bcast=False)
-                self.im4.axes.clear()
                 self.im4.axes.plot(x, u0[1], 'b')
                 self.im4.axes.plot(x, w0[2], 'r')
                 plt.figure(4)
@@ -571,28 +567,27 @@ if __name__ == '__main__':
     from mpi4py_fft import generate_xdmf
     t0 = time()
     N = (128, 128, 64)
-    #N = (32, 32, 32)
     d = {
         'N': N,
         'Re': 180.,
-        'dt': 0.0005,
+        'dt': 0.001,
         'utau': 1.0,
         'filename': f'MKM_MP_{N[0]}_{N[1]}_{N[2]}',
         'conv': 1,
         'm': 0.01,
-        'modplot': 10,
+        'modplot': -100,
         'modsave': 100,
-        'moderror': 10,
+        'moderror': 100,
         'family': 'C',
         'checkpoint': 100,
-        'sample_stats': 10,
+        'sample_stats': 100,
         'padding_factor': (1.5, 1.5, 1.5),
         'probes': None, #np.array([[0.1, 0.2], [0, 0], [0, 0]]), # Two probes at (0.1, 0, 0) and (0.2, 0, 0).
         'timestepper': 'IMEXRK222', # IMEXRK222, IMEXRK443, IMEXRK3
         }
     c = MKM(**d)
-    t, tstep = c.initialize(from_checkpoint=False)
-    c.solve(t=0, tstep=0, end_time=100)
+    t, tstep = c.initialize(from_checkpoint=True)
+    c.solve(t=0, tstep=0, end_time=30)
     #print('Computing time %2.4f'%(time()-t0))
     #print(c.TB.local_slice(False), c.ub.shape)
     if comm.Get_rank() == 0:
